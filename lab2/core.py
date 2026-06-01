@@ -1,4 +1,6 @@
 import random
+import os
+import json
 from models import CustomArray
 from config import SettingsManager
 from algorithms import (
@@ -57,9 +59,28 @@ class SortFacade:
         self.save_state() 
         sorter = SortFactory.create_sorter(sort_type)
         sorter.sort(self.current_array, callback)
-        
-        # Передаємо лічильник операцій замість часу
         self.subject.notify(sorter.visual_updates, sort_type)
+        
+        # --- ХАК ДЛЯ ЗБЕРЕЖЕННЯ ДАНИХ У ФАЙЛ ---
+        log_entry = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "algorithm": sort_type,
+            "array_size": self.settings.array_size,
+            "operations": sorter.visual_updates
+        }
+        
+        history_data = []
+        if os.path.exists("history.json"):
+            try:
+                with open("history.json", "r", encoding="utf-8") as f:
+                    history_data = json.load(f)
+            except:
+                history_data = []
+                
+        history_data.append(log_entry)
+        
+        with open("history.json", "w", encoding="utf-8") as f:
+            json.dump(history_data, f, ensure_ascii=False, indent=4)
 
 class SortCommand:
     """Command: Об'єкт-запит на запуск сортування"""
