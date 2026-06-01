@@ -2,6 +2,7 @@ import pygame
 import time
 from config import SettingsManager
 from core import SortFacade
+from core import SortCommand
 
 class PygameApp:
     def __init__(self):

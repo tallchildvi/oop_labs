@@ -1,0 +1,14 @@
+[
+    {
+        "timestamp": "2026-06-01 20:38:44",
+        "algorithm": "Bubble",
+        "array_size": 40,
+        "operations": 357
+    },
+    {
+        "timestamp": "2026-06-01 20:39:06",
+        "algorithm": "Bubble",
+        "array_size": 40,
+        "operations": 403
+    }
+]
