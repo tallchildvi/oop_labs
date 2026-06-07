@@ -145,7 +145,7 @@
             // 
             comboFilter.DropDownStyle = ComboBoxStyle.DropDownList;
             comboFilter.FormattingEnabled = true;
-            comboFilter.Items.AddRange(new object[] { "Інверсія кольорів", "", "", "Чорно-білий (Grayscale)", "", "", "Штучне засвітлення" });
+            comboFilter.Items.AddRange(new object[] { "Інверсія кольорів", "Чорно-білий (Grayscale)", "Штучне засвітлення" });
             comboFilter.Location = new Point(689, 16);
             comboFilter.Name = "comboFilter";
             comboFilter.Size = new Size(121, 25);
