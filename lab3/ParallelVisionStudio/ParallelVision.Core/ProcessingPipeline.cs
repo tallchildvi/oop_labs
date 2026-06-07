@@ -1,11 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System;
 using System.Collections.Concurrent;
+using System.Drawing;
+using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Linq;
-using System.Text;
 
 namespace ParallelVision.Core
 {
@@ -25,9 +23,8 @@ namespace ParallelVision.Core
             _threadsCount = threadsCount;
         }
 
-        public async Task StartAsync(string[] urls)
+        public async Task StartAsync(string[] urls, string filterType)
         {
-            // 1. Продюсер: завантажує і створює Bitmap
             var downloadTask = Task.Run(async () =>
             {
                 using var client = new HttpClient();
@@ -37,23 +34,15 @@ namespace ParallelVision.Core
                     {
                         byte[] data = await client.GetByteArrayAsync(url);
                         using var ms = new MemoryStream(data);
-
-                        // Завантажуємо тимчасовий бітмап із потоку
                         using var tempBmp = new Bitmap(ms);
-
-                        // КРИТИЧНИЙ ФІКС: створюємо новий Bitmap на основі тимчасового.
-                        // Це змушує .NET скопіювати чисті пікселі в нову ділянку пам'яті
-                        // і повністю розірвати зв'язок із MemoryStream.
                         Bitmap bmp = new Bitmap(tempBmp);
-
                         _downloadQueue.Add(bmp);
                     }
-                    catch { /* Ігноруємо биті посилання */ }
+                    catch { }
                 }
                 _downloadQueue.CompleteAdding();
             });
 
-            // 2. Консумер: бере Bitmap з черги та обробляє його
             var processingTask = Task.Run(() =>
             {
                 int completed = 0;
@@ -61,7 +50,7 @@ namespace ParallelVision.Core
 
                 Parallel.ForEach(_downloadQueue.GetConsumingEnumerable(), options, bmp =>
                 {
-                    Bitmap processed = _processor.Process(bmp, 1);
+                    Bitmap processed = _processor.Process(bmp, 1, filterType);
                     _processedQueue.Add(processed);
 
                     completed++;

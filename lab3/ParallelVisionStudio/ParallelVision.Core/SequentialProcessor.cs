@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Drawing;
 using System.Drawing.Imaging;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ParallelVision.Core
 {
@@ -12,30 +9,53 @@ namespace ParallelVision.Core
     {
         public string Name => "Послідовний";
 
-        public Bitmap Process(Bitmap source, int threadsCount)
+        public Bitmap Process(Bitmap source, int threadsCount, string filterType)
         {
             Bitmap bmp = (Bitmap)source.Clone();
             int width = bmp.Width;
             int height = bmp.Height;
 
-            // Блокуємо пікселі в пам'яті (формат 32 біти: ARGB)
             BitmapData bmpData = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadWrite, PixelFormat.Format32bppRgb);
             int bytes = Math.Abs(bmpData.Stride) * height;
             byte[] rgbValues = new byte[bytes];
 
-            // Копіюємо в масив
             Marshal.Copy(bmpData.Scan0, rgbValues, 0, bytes);
 
-            // Послідовно інвертуємо кольори (крок 4 байти: Blue, Green, Red, Alpha)
             for (int i = 0; i < bytes / 4; i++)
             {
                 int idx = i * 4;
-                rgbValues[idx] = (byte)(255 - rgbValues[idx]);     // B
-                rgbValues[idx + 1] = (byte)(255 - rgbValues[idx + 1]); // G
-                rgbValues[idx + 2] = (byte)(255 - rgbValues[idx + 2]); // R
+
+                byte b = rgbValues[idx];
+                byte g = rgbValues[idx + 1];
+                byte r = rgbValues[idx + 2];
+
+                double dummy = 0;
+                for (int iteration = 0; iteration < 150; iteration++)
+                {
+                    dummy += Math.Sin(b) * Math.Cos(g);
+                }
+
+                if (filterType == "Чорно-білий (Grayscale)")
+                {
+                    byte gray = (byte)(0.299f * r + 0.587f * g + 0.114f * b);
+                    rgbValues[idx] = gray;
+                    rgbValues[idx + 1] = gray;
+                    rgbValues[idx + 2] = gray;
+                }
+                else if (filterType == "Штучне засвітлення")
+                {
+                    rgbValues[idx] = (byte)Math.Min(255, b + 40);
+                    rgbValues[idx + 1] = (byte)Math.Min(255, g + 40);
+                    rgbValues[idx + 2] = (byte)Math.Min(255, r + 40);
+                }
+                else 
+                {
+                    rgbValues[idx] = (byte)(255 - b);
+                    rgbValues[idx + 1] = (byte)(255 - g);
+                    rgbValues[idx + 2] = (byte)(255 - r);
+                }
             }
 
-            // Записуємо назад у картинку
             Marshal.Copy(rgbValues, 0, bmpData.Scan0, bytes);
             bmp.UnlockBits(bmpData);
 
