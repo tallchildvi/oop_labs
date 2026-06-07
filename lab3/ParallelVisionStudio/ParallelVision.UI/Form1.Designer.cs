@@ -93,9 +93,8 @@
             lblTime.AutoSize = true;
             lblTime.Location = new Point(32, 11);
             lblTime.Name = "lblTime";
-            lblTime.Size = new Size(45, 19);
+            lblTime.Size = new Size(0, 19);
             lblTime.TabIndex = 5;
-            lblTime.Text = "label1";
             // 
             // picOriginal
             // 

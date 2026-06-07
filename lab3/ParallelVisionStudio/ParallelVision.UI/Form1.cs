@@ -11,7 +11,6 @@ namespace ParallelVision.UI
 {
     public partial class Form1 : Form
     {
-        // Сховище для збереження пар зображень (Оригінал, Оброблена)
         private readonly List<(string Name, Bitmap Original, Bitmap Processed)> _processedDataset = new();
 
         public Form1()
@@ -22,16 +21,13 @@ namespace ParallelVision.UI
 
         private void SetupDefaultSettings()
         {
-            // Виставляємо початковий фільтр, щоб не було порожньо
             if (comboFilter.Items.Count > 0) comboFilter.SelectedIndex = 0;
-
-            // Прив'язуємо подію кліку по списку фоток
             listBoxUrls.SelectedIndexChanged += ListBoxUrls_SelectedIndexChanged;
         }
 
         private async void btnStart_Click(object sender, EventArgs e)
         {
-            // Пак надійних URL-адрес високої роздільної здатності
+
             string[] baseUrls = {
                 "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800",
                 "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800",
@@ -39,7 +35,6 @@ namespace ParallelVision.UI
                 "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800"
             };
 
-            // Очищаємо все перед новим стартом
             _processedDataset.Clear();
             listBoxUrls.Items.Clear();
             progressBar.Value = 0;
@@ -47,8 +42,6 @@ namespace ParallelVision.UI
             lblTime.Text = "Крок 1: Завантаження базових зображень з мережі...";
 
             var cachedImages = new List<Bitmap>();
-
-            // Налаштовуємо HttpClient з User-Agent, щоб сайти нас не блокували
             using var client = new HttpClient();
             client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
 
@@ -59,7 +52,7 @@ namespace ParallelVision.UI
                     var data = await client.GetByteArrayAsync(url);
                     using var ms = new MemoryStream(data);
                     using var temp = new Bitmap(ms);
-                    cachedImages.Add(new Bitmap(temp)); // Робимо чисту копію в RAM
+                    cachedImages.Add(new Bitmap(temp)); 
                 }
                 catch (Exception ex)
                 {
@@ -76,11 +69,9 @@ namespace ParallelVision.UI
 
             progressBar.Value = 30;
             string selectedFilter = comboFilter.SelectedItem?.ToString() ?? "Інверсія кольорів";
-            lblTime.Text = $" Крок 2: Обробка великого датасету фільтром '{selectedFilter}'...";
+            lblTime.Text = $"Крок 2: Обробка великого датасету фільтром '{selectedFilter}'...";
 
             int threads = (int)numericThreads.Value;
-
-            // Патерн Стратегія
             IImageProcessor processor = rbParallel.Checked ?
                 new ParallelProcessor() : new SequentialProcessor();
 
@@ -95,15 +86,17 @@ namespace ParallelVision.UI
 
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            int counter = 1;
+            int counter = 0;
             foreach (var originalImg in largeDataset)
             {
                 Bitmap processedImg = await Task.Run(() => processor.Process(originalImg, threads, selectedFilter));
-
-                string imageName = $"Dataset_Image_{counter++:D2}.png";
+                counter++;
+                string imageName = $"Dataset_Image_{counter:D2}.png";
                 _processedDataset.Add((imageName, originalImg, processedImg));
+
                 listBoxUrls.Items.Add(imageName);
-                progressBar.Value = 30 + (int)((counter * 70.0) / largeDataset.Count);
+                int currentProgress = 30 + (int)((counter * 70.0) / largeDataset.Count);
+                progressBar.Value = Math.Min(100, currentProgress);
             }
 
             watch.Stop();
