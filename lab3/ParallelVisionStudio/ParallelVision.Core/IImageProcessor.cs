@@ -1,4 +1,4 @@
-﻿namespace ParallelVision
+﻿namespace ParallelVision.Core
 {
     public interface IImageProcessor
     {
