@@ -11,13 +11,13 @@ namespace ParallelVision.Core
 {
     public class ProcessingPipeline
     {
-        private readonly BlockingCollection<byte[]> _downloadQueue = new();
-        private readonly BlockingCollection<byte[]> _processedQueue = new();
+        private readonly BlockingCollection<Bitmap> _downloadQueue = new();
+        private readonly BlockingCollection<Bitmap> _processedQueue = new();
         private readonly IImageProcessor _processor;
         private readonly int _threadsCount;
 
         public event Action<int> ProgressChanged;
-        public BlockingCollection<byte[]> OutputQueue => _processedQueue;
+        public BlockingCollection<Bitmap> OutputQueue => _processedQueue;
 
         public ProcessingPipeline(IImageProcessor processor, int threadsCount)
         {
@@ -27,6 +27,7 @@ namespace ParallelVision.Core
 
         public async Task StartAsync(string[] urls)
         {
+            // 1. Продюсер: завантажує і створює Bitmap
             var downloadTask = Task.Run(async () =>
             {
                 using var client = new HttpClient();
@@ -35,21 +36,32 @@ namespace ParallelVision.Core
                     try
                     {
                         byte[] data = await client.GetByteArrayAsync(url);
-                        _downloadQueue.Add(data);
+                        using var ms = new MemoryStream(data);
+
+                        // Завантажуємо тимчасовий бітмап із потоку
+                        using var tempBmp = new Bitmap(ms);
+
+                        // КРИТИЧНИЙ ФІКС: створюємо новий Bitmap на основі тимчасового.
+                        // Це змушує .NET скопіювати чисті пікселі в нову ділянку пам'яті
+                        // і повністю розірвати зв'язок із MemoryStream.
+                        Bitmap bmp = new Bitmap(tempBmp);
+
+                        _downloadQueue.Add(bmp);
                     }
-                    catch { /* Обробка помилок завантаження */ }
+                    catch { /* Ігноруємо биті посилання */ }
                 }
                 _downloadQueue.CompleteAdding();
             });
 
+            // 2. Консумер: бере Bitmap з черги та обробляє його
             var processingTask = Task.Run(() =>
             {
                 int completed = 0;
                 var options = new ParallelOptions { MaxDegreeOfParallelism = _threadsCount };
 
-                Parallel.ForEach(_downloadQueue.GetConsumingEnumerable(), options, item =>
+                Parallel.ForEach(_downloadQueue.GetConsumingEnumerable(), options, bmp =>
                 {
-                    byte[] processed = _processor.Process(item, 1);
+                    Bitmap processed = _processor.Process(bmp, 1);
                     _processedQueue.Add(processed);
 
                     completed++;

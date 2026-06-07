@@ -1,7 +1,8 @@
-using System;
-using System.IO;
+п»їusing System;
+using System.Collections.Generic;
 using System.Drawing;
-using System.Net.Http;
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using ParallelVision.Core;
 
@@ -9,69 +10,119 @@ namespace ParallelVision.UI
 {
     public partial class Form1 : Form
     {
+        // РЎС…РѕРІРёС‰Рµ РґР»СЏ РѕР±СЂРѕР±Р»РµРЅРёС… РєР°СЂС‚РёРЅРѕРє, С‰РѕР± РїРµСЂРµРіР»СЏРґР°С‚Рё С—С… Р·Р° РєР»С–РєРѕРј
+        private readonly Dictionary<string, (Bitmap Original, Bitmap Processed)> _datasetResult = new();
+
         public Form1()
         {
             InitializeComponent();
+            SetupCustomStyles();
+        }
+
+        private void SetupCustomStyles()
+        {
+            // РџРµСЂРµРєРѕРЅР°Р№СЃСЏ, С‰Рѕ ListBox СЂРµР°РіСѓС” РЅР° РєР»С–РєРё
+            listBoxUrls.SelectedIndexChanged += ListBoxUrls_SelectedIndexChanged;
         }
 
         private async void btnStart_Click(object sender, EventArgs e)
         {
-            // Тестові URL-адреси з гарантованими картинками
-            string[] urls = {
-                "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=500", // Абстрактний градієнт
-                "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=500"  // Нічне місто
-            };
-
-            int threads = (int)numericThreads.Value;
-
-            // Ініціалізуємо наш паралельний процесор та конвеєр
-            var processor = new ParallelProcessor();
-            var pipeline = new ProcessingPipeline(processor, threads);
-
-            // Налаштовуємо потокобезпечний прогрес-бар
-            var progress = new Progress<int>(value => progressBar.Value = value);
-            pipeline.ProgressChanged += value => ((IProgress<int>)progress).Report(value);
+            // 10 СЏРєС–СЃРЅРёС… URL-Р°РґСЂРµСЃ РґР»СЏ С„РѕСЂРјСѓРІР°РЅРЅСЏ РІРµР»РёРєРѕРіРѕ РїСѓР»Сѓ РґР°РЅРёС…
+            string[] baseUrls = {
+        "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200",
+        "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=1200",
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200",
+        "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200",
+        "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=1200",
+        "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=1200",
+        "https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?w=1200",
+        "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200",
+        "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=1200",
+        "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=1200"
+    };
 
             btnStart.Enabled = false;
-            lblTime.Text = "Завантаження та обробка...";
+            progressBar.Value = 10;
+            lblTime.Text = "вЏі Р•С‚Р°Рї 1: РљРµС€СѓРІР°РЅРЅСЏ Р±Р°Р·РѕРІРёС… Р·РѕР±СЂР°Р¶РµРЅСЊ Р· РјРµСЂРµР¶С–...";
 
-            // Покажемо першу картинку як оригінал перед стартом (для демонстрації викладачу)
-            try
+            var cachedImages = new List<Bitmap>();
+            using var client = new System.Net.Http.HttpClient();
+
+            foreach (var url in baseUrls)
             {
-                using var client = new HttpClient();
-                byte[] originalBytes = await client.GetByteArrayAsync(urls[0]);
-                using var ms = new MemoryStream(originalBytes);
-                picOriginal.Image = Image.FromStream(ms);
+                try
+                {
+                    var data = await client.GetByteArrayAsync(url);
+                    using var ms = new System.IO.MemoryStream(data);
+                    cachedImages.Add(new Bitmap(new Bitmap(ms)));
+                }
+                catch { /* Р†РіРЅРѕСЂСѓС”РјРѕ РїРѕРјРёР»РєРё РјРµСЂРµР¶С– РґР»СЏ РѕРєСЂРµРјРёС… С„Р°Р№Р»С–РІ */ }
             }
-            catch (Exception ex)
+
+            if (cachedImages.Count == 0)
             {
-                MessageBox.Show($"Помилка завантаження оригіналу: {ex.Message}");
+                MessageBox.Show("РќРµ РІРґР°Р»РѕСЃСЏ Р·Р°РІР°РЅС‚Р°Р¶РёС‚Рё Р¶РѕРґРЅРѕРіРѕ Р·РѕР±СЂР°Р¶РµРЅРЅСЏ. РџРµСЂРµРІС–СЂ С–РЅС‚РµСЂРЅРµС‚.");
                 btnStart.Enabled = true;
                 return;
             }
 
-            // Запуск бенчмарку
+            // рџ§  РЎРўР’РћР Р•РќРќРЇ Р’Р•Р›РРљРћР“Рћ Р”РђРўРђРЎР•РўРЈ (РњРЅРѕР¶РёРјРѕ РєР°СЂС‚РёРЅРєРё РІ РїР°Рј'СЏС‚С–)
+            // РљРѕР¶РЅСѓ Р·Р°РІР°РЅС‚Р°Р¶РµРЅСѓ РєР°СЂС‚РёРЅРєСѓ РґСѓР±Р»СЋС”РјРѕ 5 СЂР°Р·С–РІ. Р Р°Р·РѕРј: ~50 РІР°Р¶РєРёС… Р·РѕР±СЂР°Р¶РµРЅСЊ.
+            var largeDataset = new List<Bitmap>();
+            for (int i = 0; i < 5; i++)
+            {
+                foreach (var img in cachedImages)
+                {
+                    largeDataset.Add((Bitmap)img.Clone());
+                }
+            }
+
+            progressBar.Value = 40;
+            lblTime.Text = $"вЏі Р•С‚Р°Рї 2: РћР±СЂРѕР±РєР° РґР°С‚Р°СЃРµС‚Сѓ ({largeDataset.Count} С€С‚) РЅР° CPU...";
+
+            int threads = (int)numericThreads.Value;
+
+            // Р’РёР±С–СЂ СЃС‚СЂР°С‚РµРіС–С— (РїР°С‚С‚РµСЂРЅ Strategy)
+            IImageProcessor processor = rbParallel.Checked ?
+                new ParallelProcessor() : new SequentialProcessor();
+
+            var processedImages = new List<Bitmap>();
+
+            // рџ”Ґ Р—РђРџРЈРЎРљ РўРђР™РњР•Р Рђ (РњС–СЂСЏС”РјРѕ С‚С–Р»СЊРєРё С‡РёСЃС‚РёР№ РїСЂРѕСЂР°С…СѓРЅРѕРє)
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            // Запускаємо конвеєр обробки у фоновому потоці
-            await pipeline.StartAsync(urls);
+            foreach (var img in largeDataset)
+            {
+                // Р’С–РґРїСЂР°РІР»СЏС”РјРѕ РєРѕР¶РЅСѓ РєР°СЂС‚РёРЅРєСѓ РЅР° СЂРѕР·СЂРёРІ РїСЂРѕС†РµСЃРѕСЂСѓ
+                var processed = await Task.Run(() => processor.Process(img, threads));
+                processedImages.Add(processed);
+            }
 
             watch.Stop();
-            btnStart.Enabled = true;
-            lblTime.Text = $"Завершено за: {watch.ElapsedMilliseconds} мс";
 
-            // Дістаємо оброблений результат із черги та виводимо на екран
-            if (pipeline.OutputQueue.TryTake(out byte[] processedBytes))
+            // 3. Р’РёРІРµРґРµРЅРЅСЏ СЂРµР·СѓР»СЊС‚Р°С‚С–РІ
+            progressBar.Value = 100;
+            btnStart.Enabled = true;
+
+            long elapsedMs = watch.ElapsedMilliseconds;
+            lblTime.Text = $"[{processor.Name}] РџРѕС‚РѕРєС–РІ: {threads}. РћР±СЂРѕР±Р»РµРЅРѕ: {largeDataset.Count} РєР°СЂС‚РёРЅРѕРє Р·Р° {elapsedMs} РјСЃ";
+
+            // РћРЅРѕРІР»СЋС”РјРѕ PictureBox РґР»СЏ РІС–Р·СѓР°Р»С–Р·Р°С†С–С—
+            picOriginal.Image = largeDataset[0];
+            picProcessed.Image = processedImages[0];
+        }
+
+        // РљР»С–Рє РїРѕ РµР»РµРјРµРЅС‚Сѓ РІ СЃРїРёСЃРєСѓ РїРѕРєР°Р·СѓС” Р№РѕРіРѕ С–РЅРґРёРІС–РґСѓР°Р»СЊРЅРёР№ СЂРµР·СѓР»СЊС‚Р°С‚
+        private void ListBoxUrls_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (listBoxUrls.SelectedItem is string selectedName && _datasetResult.ContainsKey(selectedName))
             {
-                try
-                {
-                    using var ms = new MemoryStream(processedBytes);
-                    picProcessed.Image = Image.FromStream(ms);
-                }
-                catch
-                {
-                    lblTime.Text += " [Помилка конвертації результату]";
-                }
+                // Р”Р»СЏ РЅР°РѕС‡РЅРѕСЃС‚С–: Р»С–РІРѕСЂСѓС‡ РїРѕРєР°Р¶РµРјРѕ РѕСЂРёРіС–РЅР°Р» (РїСЂРѕСЃС‚Рѕ СЂРµРІРµСЂСЃ С–РЅРІРµСЂСЃС–С—, С‰РѕР± Р·РЅРѕРІСѓ СЃС‚Р°РІ РЅРѕСЂРјР°Р»СЊРЅРёРј)
+                var processor = new SequentialProcessor();
+                picOriginal.Image = processor.Process(_datasetResult[selectedName].Original, 1);
+
+                // РџСЂР°РІРѕСЂСѓС‡ вЂ” РѕР±СЂРѕР±Р»РµРЅРёР№ РїР°СЂР°Р»РµР»СЊРЅРѕ СЂРµР·СѓР»СЊС‚Р°С‚
+                picProcessed.Image = _datasetResult[selectedName].Processed;
             }
         }
     }

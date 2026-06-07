@@ -1,8 +1,10 @@
-﻿namespace ParallelVision.Core
+﻿using System.Drawing;
+
+namespace ParallelVision.Core
 {
     public interface IImageProcessor
     {
         string Name { get; }
-        byte[] Process(byte[] imageData, int threadsCount);
+        Bitmap Process(Bitmap source, int threadsCount);
     }
 }
